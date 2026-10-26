@@ -1,0 +1,3 @@
+/home/avery/opencv/OpenCVExample/build/CMakeFiles/OpenCVExample.dir
+/home/avery/opencv/OpenCVExample/build/CMakeFiles/edit_cache.dir
+/home/avery/opencv/OpenCVExample/build/CMakeFiles/rebuild_cache.dir

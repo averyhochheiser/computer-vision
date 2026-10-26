@@ -1,0 +1,11 @@
+.vs/
+.idea/
+*.ipch
+*.dll
+*.exe
+*.obj
+*.pdb
+x64/
+Debug/
+Release/
+Media/
