@@ -21,7 +21,6 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/avery/opencv/OpenCVExample/Utilities.cpp" "CMakeFiles/OpenCVExample.dir/Utilities.cpp.o" "gcc" "CMakeFiles/OpenCVExample.dir/Utilities.cpp.o.d"
   "/home/avery/opencv/OpenCVExample/Video.cpp" "CMakeFiles/OpenCVExample.dir/Video.cpp.o" "gcc" "CMakeFiles/OpenCVExample.dir/Video.cpp.o.d"
   "/home/avery/opencv/OpenCVExample/main.cpp" "CMakeFiles/OpenCVExample.dir/main.cpp.o" "gcc" "CMakeFiles/OpenCVExample.dir/main.cpp.o.d"
-  "/home/avery/opencv/OpenCVExample/src/ImageLoader.cpp" "CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o" "gcc" "CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o.d"
   "" "OpenCVExample" "gcc" "CMakeFiles/OpenCVExample.dir/link.d"
   )
 

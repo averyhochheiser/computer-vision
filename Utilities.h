@@ -1,4 +1,3 @@
-#pragma once
 /*
  * This code is provided as part of "A Practical Introduction to Computer Vision with OpenCV"
  * by Kenneth Dawson-Howe � Wiley & Sons Inc. 2014.  All rights reserved.

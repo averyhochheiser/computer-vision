@@ -230,9 +230,6 @@ int main(int argc, const char** argv)
 
 	int choice;
 
-	MyApplication();
-	return 0;
-
 	do
 	{
 		imshow("Welcome", default_image);

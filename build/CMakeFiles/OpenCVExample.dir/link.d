@@ -15,7 +15,6 @@ OpenCVExample: \
   CMakeFiles/OpenCVExample.dir/Utilities.cpp.o \
   CMakeFiles/OpenCVExample.dir/Video.cpp.o \
   CMakeFiles/OpenCVExample.dir/main.cpp.o \
-  CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o \
   /usr/lib64/libopencv_gapi.so.4.13.0 \
   /usr/lib64/libopencv_stitching.so.4.13.0 \
   /usr/lib64/libopencv_alphamat.so.4.13.0 \
@@ -691,8 +690,6 @@ CMakeFiles/OpenCVExample.dir/Utilities.cpp.o:
 CMakeFiles/OpenCVExample.dir/Video.cpp.o:
 
 CMakeFiles/OpenCVExample.dir/main.cpp.o:
-
-CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o:
 
 /usr/lib64/libopencv_gapi.so.4.13.0:
 

@@ -26,8 +26,6 @@ file(REMOVE_RECURSE
   "CMakeFiles/OpenCVExample.dir/Video.cpp.o.d"
   "CMakeFiles/OpenCVExample.dir/main.cpp.o"
   "CMakeFiles/OpenCVExample.dir/main.cpp.o.d"
-  "CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o"
-  "CMakeFiles/OpenCVExample.dir/src/ImageLoader.cpp.o.d"
   "OpenCVExample"
   "OpenCVExample.pdb"
 )
