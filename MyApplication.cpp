@@ -182,6 +182,67 @@ vector<Vec3f> FindBalls(const Mat& image, const Mat& perspective_matrix)
 	return balls;
 }
 
+const int NUMBER_OF_BALLS = 16;
+const int GROUND_TRUTH[7][NUMBER_OF_BALLS][2] = {
+                { // AllBalls.jpeg
+                        {253, 908}, {250, 959}, {255, 1013}, {256, 1072}, {254, 1132}, {262, 1184}, {256, 1244}, {253, 1307},
+                        {329, 901}, {330, 961}, {334, 1130}, {335, 1013}, {336, 1067}, {342, 1245}, {345, 1187}, {293, 797}
+                },
+                { // Table1.jpeg
+                        {309, 1092}, {429, 1212}, {353, 1174}, {335, 1050}, {285, 1211}, {261, 1170}, {352, 1173}, {331, 1132},
+                        {240, 1210}, {310, 1170}, {407, 1169}, {281, 1135}, {374, 1212}, {360, 1091}, {331, 1213}, {288, 29}
+                },
+                { // Table2.jpeg
+                        {282, 1103}, {620, 1224}, {391, 1121}, {310, 1305}, {315, 1046}, {202, 621}, {361, 1173}, {331, 1132},
+                        {177, 725}, {185, 1269}, {665, 798}, {296, 438}, {53, 1235}, {362, 1090}, {399, 1205}, {507, 1169}
+                },
+                { // Table3.jpeg
+                        {23, 908}, {616, 1224}, {447, 1199}, {336, 29}, {305, 1406}, {210, 621}, {260, 1294}, {226, 1252},
+                        {177, 725}, {171, 1270}, {665, 798}, {249, 351}, {53, 1233}, {169, 901}, {399, 1201}, {434, 29}
+                },
+                { // Table4.jpeg
+                        {23, 908}, {546, 1407}, {444, 1204}, {-1, -1}, {305, 1406}, {210, 621}, {260, 1294}, {226, 1252},
+                        {181, 724}, {171, 1270}, {665, 798}, {249, 351}, {58, 1231}, {169, 901}, {399, 1201}, {88, 1392}
+                },
+                { // Table5.jpeg
+                        {535, 23}, {546, 1407}, {444, 1204}, {-1, -1}, {305, 1406}, {131, 25}, {260, 1294}, {226, 1252},
+                        {538, 72}, {171, 1270}, {665, 798}, {249, 351}, {-1, -1}, {169, 901}, {399, 1201}, {608, 26}
+                },
+                { // Table6.jpeg
+                        {535, 23}, {477, 1364}, {444, 1204}, {-1, -1}, {305, 1406}, {131, 25}, {260, 1294}, {226, 1252},
+                        {538, 72}, {171, 1270}, {-1, -1}, {249, 351}, {-1, -1}, {169, 901}, {399, 1201}, {629, 947}
+                }
+};
+
+vector<Point2f> GetGroundTruth(int image_idx)
+{
+	vector<Point2f> positions;
+	for (int ball = 0; ball < NUMBER_OF_BALLS; ball++)
+	{
+		int row = GROUND_TRUTH[image_idx][ball][0];
+		int col = GROUND_TRUTH[image_idx][ball][1];
+
+		if (row >= 0)
+			positions.push_back(Point2f((float)col, (float)row));
+	}
+
+	return positions;
+}
+
+int FoundBalls(const vector<Point2f>& detected, const vector<Point2f>& truth, double max_distance)
+{
+	int found = 0;
+	for (const Point2f& true_pos : truth)
+		for (const Point2f& position : detected)
+			if (norm(position - true_pos) <= max_distance)
+			{
+				found ++;
+				break;
+			}
+
+	return found;
+}
+
 void MyApplication()
 {
 	// Images are loaded from the Media/Pool folder
@@ -199,6 +260,9 @@ void MyApplication()
 
 	Mat perspective_matrix = GetPerspectiveMatrix();
 
+	int total_found = 0;
+	int total_balls = 0;
+
 	for (int file_no = 0; file_no < number_of_images; file_no++)
 	{
 		string filename(file_location);
@@ -213,18 +277,30 @@ void MyApplication()
 		// ---- YOUR PROCESSING GOES HERE ----
 
 		vector<Vec3f> balls = FindBalls(input, perspective_matrix);
-		Mat table = WarpToTable(input, perspective_matrix);
 
 		Mat detections = input.clone();
+		vector<Point2f> centers;
 		for (const Vec3f& ball : balls)
 		{
 			circle(detections, Point((int)ball[0], (int)ball[1]), (int)ball[2], Scalar(0, 0, 255), 2);
 			circle(detections, Point((int)ball[0], (int)ball[1]), 3, Scalar(255, 0, 255), FILLED);
+			centers.push_back(Point2f(ball[0], ball[1]));
 		}
+
+		vector<Point2f> detected = ToTableCoordinates(centers, perspective_matrix);
+		vector<Point2f> truth = GetGroundTruth(file_no);
+		int found = FoundBalls(detected, truth, BALL_RADIUS);
 
 		// -----------------------------------
 
-		cout << pool_files[file_no] << ": " << input.cols << "x" << input.rows << endl;
+		//cout << pool_files[file_no] << ": " << input.cols << "x" << input.rows << endl;
+		printf("%s: found %d of %d balls (%.1f%%)\n", pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size());
+
+		if (file_no > 0)
+		{
+			total_found += found;
+			total_balls += (int)truth.size();
+		}
 
 		// Mat side_by_side = JoinImagesHorizontally(input, "Input", output, "Output", 4);
 		// imshow("My Application", side_by_side);
@@ -238,5 +314,5 @@ void MyApplication()
 			break;
 	}
 	destroyAllWindows();
-
+	printf("Tables 1-6: found %d of %d balls (%.1f%%)\n", total_found, total_balls, 100.0 * total_found / total_balls);
 }
