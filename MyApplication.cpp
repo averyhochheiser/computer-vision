@@ -15,6 +15,17 @@ const float OUTLINE_FRACTION = 0.25f;
 
 const float HUE_WEIGHT = 255.0f / 179.0f;
 
+const int WHITE_MAX_SATURATION = 80;
+const int WHITE_MIN_VAL = 120;
+const double WHITE_WEIGHT = 255;
+const double RING_INNER = 0.5;
+const double RING_OUTER = 0.95;
+
+struct BallFeat
+{
+	double white;
+	Scalar color;
+};
 
 float BallRadiusInPhoto(Point2f position_on_table, const Mat& perspective_matrix)
 {
@@ -244,6 +255,105 @@ int FoundBalls(const vector<Point2f>& detected, const vector<Point2f>& truth, do
 	return found;
 }
 
+BallFeat GetFeatures(const Mat& image, const Vec3f& ball)
+{
+	Point center((int)ball[0], (int)ball[1]);
+
+	Mat inner = Mat::zeros(image.size(), CV_8UC1);
+	circle(inner, center, (int)(ball[2] + 0.7), Scalar(255), FILLED);
+
+	Mat outer = Mat::zeros(image.size(), CV_8UC1);
+	circle(outer, center, (int)(ball[2] * RING_OUTER), Scalar(255), FILLED);
+	circle(outer, center, (int)(ball[2] * RING_INNER), Scalar(0), FILLED);
+
+	Mat hsv;
+	cvtColor(image, hsv, COLOR_BGR2HSV);
+	Mat white;
+	inRange(hsv, Scalar(0, 0, WHITE_MIN_VAL), Scalar(180, WHITE_MAX_SATURATION, 255), white);
+
+	Mat colored = inner & ~white;
+
+	BallFeat features;
+	features.white = (double)countNonZero(white & outer) / countNonZero(outer);
+	if (countNonZero(colored) > 30)
+		features.color = mean(image, colored);
+	else
+		features.color = mean(image, inner);
+
+	return features;
+}
+
+vector<BallFeat> TrainBalls(const Mat& all_balls, const Mat& perspective_matrix)
+{
+	vector<BallFeat> trained;
+	Mat inverse = perspective_matrix.inv();
+
+	for (int ball = 0; ball < NUMBER_OF_BALLS; ball++)
+	{
+		Point2f table_positions((float)GROUND_TRUTH[0][ball][1],(float)GROUND_TRUTH[0][ball][0]);
+
+		vector<Point2f> photo_position;
+		perspectiveTransform(vector<Point2f>{table_positions}, photo_position, inverse);
+		float radius = BallRadiusInPhoto(table_positions, perspective_matrix);
+
+		trained.push_back(GetFeatures(all_balls, Vec3f(photo_position[0].x, photo_position[0].y, radius)));
+	}
+
+	return trained;
+}
+
+int ClassifyBall(const BallFeat& features, const vector<BallFeat>& trained)
+{
+	int best = 0;
+	double best_distance = 1e18;
+
+	for (int i = 0; i < (int)trained.size(); i++)
+	{
+		double distance = pow(WHITE_WEIGHT * (features.white - trained[i].white), 2);
+		for (int channel = 0; channel < 3; channel++)
+			distance += pow(features.color[channel] - trained[i].color[channel], 2);
+
+		if (distance < best_distance)
+		{
+			best_distance = distance;
+			best = i;
+		}
+	}
+
+	return best;
+}
+
+int TrueBallLabel(int image_idx, const Point2f& position, double max_distance)
+{
+	int label = -1;
+	double best = max_distance;
+
+	for (int ball = 0; ball < NUMBER_OF_BALLS; ball++)
+	{
+		if (GROUND_TRUTH[image_idx][ball][0] < 0)
+			continue;
+
+		Point2f truth_position((float)GROUND_TRUTH[image_idx][ball][1], (float)GROUND_TRUTH[image_idx][ball][0]);
+		double distance = norm(position - truth_position);
+		if (distance <= best)
+		{
+			best = distance;
+			label = ball;
+		}
+	}
+
+	return label;
+}
+
+
+
+
+
+
+
+
+
+
 void MyApplication()
 {
 	// Images are loaded from the Media/Pool folder
@@ -261,8 +371,16 @@ void MyApplication()
 
 	Mat perspective_matrix = GetPerspectiveMatrix();
 
+	Mat all_balls = imread(string(file_location) + "AllBalls.jpeg", IMREAD_COLOR);
+	vector<BallFeat> trained = TrainBalls(all_balls, perspective_matrix);
+
 	int total_found = 0;
 	int total_balls = 0;
+	int total_correct = 0;
+	int total_matched = 0;
+
+	namedWindow("detections", WINDOW_NORMAL);
+	resizeWindow("detections", 1600, 420);
 
 	for (int file_no = 0; file_no < number_of_images; file_no++)
 	{
@@ -279,35 +397,65 @@ void MyApplication()
 
 		vector<Vec3f> balls = FindBalls(input, perspective_matrix);
 
-		Mat detections = input.clone();
-		vector<Point2f> centers;
-		for (const Vec3f& ball : balls)
-		{
-			circle(detections, Point((int)ball[0], (int)ball[1]), (int)ball[2], Scalar(0, 0, 255), 2);
-			circle(detections, Point((int)ball[0], (int)ball[1]), 3, Scalar(255, 0, 255), FILLED);
-			centers.push_back(Point2f(ball[0], ball[1]));
-		}
+		//Mat detections = input.clone();
+		// vector<Point2f> centers;
+		// for (const Vec3f& ball : balls)
+		// {
+		// 	circle(detections, Point((int)ball[0], (int)ball[1]), (int)ball[2], Scalar(0, 0, 255), 2);
+		// 	circle(detections, Point((int)ball[0], (int)ball[1]), 3, Scalar(255, 0, 255), FILLED);
+		// 	centers.push_back(Point2f(ball[0], ball[1]));
+		// }
 
-		vector<Point2f> detected = ToTableCoordinates(centers, perspective_matrix);
+		vector<Point2f> photo_centers;
+		for (const Vec3f& ball : balls)
+			photo_centers.push_back(Point2f(ball[0], ball[1]));
+
+		vector<Point2f> detected = ToTableCoordinates(photo_centers, perspective_matrix);
+
 		vector<Point2f> truth = GetGroundTruth(file_no);
 		int found = FoundBalls(detected, truth, BALL_RADIUS);
+
+		Mat detections = input.clone();
+		int correct = 0;
+		int matched = 0;
+		for (int i = 0; i < (int)balls.size(); i++)
+		{
+			int predicted = ClassifyBall(GetFeatures(input, balls[i]), trained);
+			int true_label = TrueBallLabel(file_no, detected[i], BALL_RADIUS);
+
+			if (true_label >= -1)
+			{
+				matched++;
+				if (predicted == true_label)
+					correct++;
+			}
+
+			Point center((int)balls[i][0], (int)balls[i][1]);
+			circle(detections, center, (int)balls[i][2], Scalar(0, 0, 255), 2);
+			putText(detections, predicted == 15 ? "W" : to_string(predicted + 1), center + Point(-8, 6),
+        FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 2);
+		}
 
 		// -----------------------------------
 
 		//cout << pool_files[file_no] << ": " << input.cols << "x" << input.rows << endl;
-		printf("%s: found %d of %d balls (%.1f%%)\n", pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size());
+		//printf("%s: found %d of %d balls (%.1f%%)\n", pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size());
+		printf("%s: found %d of %d balls (%.1f%%), labelled %d of %d detected balls correctly\n",
+					   pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size(), correct, matched);
 
 		if (file_no > 0)
 		{
 			total_found += found;
 			total_balls += (int)truth.size();
+			total_correct += correct;
+			total_matched += matched;
 		}
 
 		// Mat side_by_side = JoinImagesHorizontally(input, "Input", output, "Output", 4);
 		// imshow("My Application", side_by_side);
 
-		namedWindow("detections", WINDOW_NORMAL);
-		resizeWindow("detections", 1600, 420);
+		// namedWindow("detections", WINDOW_NORMAL);
+		// resizeWindow("detections", 1600, 420);
 		imshow("detections", detections);
 
 		char key = waitKey(); // press any key for the next image, 'x' to quit
@@ -315,5 +463,8 @@ void MyApplication()
 			break;
 	}
 	destroyAllWindows();
-	printf("Tables 1-6: found %d of %d balls (%.1f%%)\n", total_found, total_balls, 100.0 * total_found / total_balls);
+	//printf("Tables 1-6: found %d of %d balls (%.1f%%)\n", total_found, total_balls, 100.0 * total_found / total_balls);
+	printf("tables 1-6 detection:   found %d of %d balls (%.1f%%)\n", total_found, total_balls, 100.0 * total_found / total_balls);
+	printf("tables 1-6 recognition: %d of %d detected balls labelled correctly (%.1f%%)\n", total_correct, total_matched, 100.0 * total_correct / total_matched);
+	printf("tables 1-6 end to end:  %d of %d balls found and labelled correctly (%.1f%%)\n", total_correct, total_balls, 100.0 * total_correct / total_balls);
 }
