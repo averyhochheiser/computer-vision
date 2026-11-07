@@ -344,15 +344,48 @@ int TrueBallLabel(int image_idx, const Point2f& position, double max_distance)
 
 	return label;
 }
+struct Counts
+{
+	long tp = 0, fp = 0, fn = 0, tn = 0;
 
+	void Add(const Counts& c)
+	{
+		tp += c.tp;
+		fp += c.fp;
+		fn += c.fn;
+		tn += c.tn;
+	}
+};
 
+Mat BallMap(const vector<Point2f>& positions)
+{
+	Mat map = Mat::zeros(TABLE_HEIGHT, TABLE_WIDTH, CV_8UC1);
+	for (const Point2f& position : positions)
+		circle(map, position, (int)BALL_RADIUS, Scalar(255), FILLED);
 
+	return map;
+}
 
+Counts CompareMaps(const vector<Point2f>& detected, const vector<Point2f>& truth)
+{
+	Mat found = BallMap(detected);
+	Mat real = BallMap(truth);
 
+	Counts counts;
+	counts.tp = countNonZero(found & real);
+	counts.fp = countNonZero(found & ~real);
+	counts.fn = countNonZero(~found & real);
+	counts.tn = countNonZero(~found & ~real);
 
+	return counts;
+}
 
-
-
+void PrintCounts(const string& name, const Counts& c)
+{
+	printf("%-12s recall %5.1f%%  precision %5.1f%%  accuracy %5.2f%%  specificity %5.2f%%\n", name.c_str(),
+			100.0 * c.tp / (c.tp + c.fn), 100.0 * c.tp / (c.tp + c.fp),
+			100.0 * (c.tp + c.tn) / (c.tp + c.tn + c.fp + c.fn), 100.0 * c.tn / (c.tn + c.fp));
+}
 
 void MyApplication()
 {
@@ -378,6 +411,7 @@ void MyApplication()
 	int total_balls = 0;
 	int total_correct = 0;
 	int total_matched = 0;
+	Counts total_counts;
 
 	namedWindow("detections", WINDOW_NORMAL);
 	resizeWindow("detections", 1600, 420);
@@ -414,6 +448,7 @@ void MyApplication()
 
 		vector<Point2f> truth = GetGroundTruth(file_no);
 		int found = FoundBalls(detected, truth, BALL_RADIUS);
+		Counts counts = CompareMaps(detected, truth);
 
 		Mat detections = input.clone();
 		int correct = 0;
@@ -423,7 +458,7 @@ void MyApplication()
 			int predicted = ClassifyBall(GetFeatures(input, balls[i]), trained);
 			int true_label = TrueBallLabel(file_no, detected[i], BALL_RADIUS);
 
-			if (true_label >= -1)
+			if (true_label >= 0)
 			{
 				matched++;
 				if (predicted == true_label)
@@ -442,6 +477,7 @@ void MyApplication()
 		//printf("%s: found %d of %d balls (%.1f%%)\n", pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size());
 		printf("%s: found %d of %d balls (%.1f%%), labelled %d of %d detected balls correctly\n",
 					   pool_files[file_no], found, (int)truth.size(), 100.0 * found / truth.size(), correct, matched);
+		PrintCounts("   map:", counts);
 
 		if (file_no > 0)
 		{
@@ -449,6 +485,7 @@ void MyApplication()
 			total_balls += (int)truth.size();
 			total_correct += correct;
 			total_matched += matched;
+			total_counts.Add(counts);
 		}
 
 		// Mat side_by_side = JoinImagesHorizontally(input, "Input", output, "Output", 4);
